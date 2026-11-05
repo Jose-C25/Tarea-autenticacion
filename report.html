@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Tarea: Autenticación, Refresh Tokens y Roles con Auth0</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 1.8cm 1.5cm 1.8cm 1.5cm;
+      @bottom-right {
+        content: counter(page);
+      }
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+      color: #1e293b;
+      line-height: 1.55;
+      font-size: 10pt;
+      margin: 0;
+      padding: 0;
+    }
+    h1, h2, h3, h4 {
+      color: #0f172a;
+      font-weight: 700;
+      page-break-after: avoid;
+    }
+    h1 { font-size: 20pt; margin-bottom: 6px; }
+    h2 { font-size: 14pt; margin-top: 18pt; margin-bottom: 8pt; border-bottom: 1.5pt solid #3b82f6; padding-bottom: 4px; color: #1d4ed8; break-before: page; }
+    h2:first-of-type { break-before: auto; }
+    h3 { font-size: 11pt; margin-top: 12pt; margin-bottom: 5pt; color: #0f172a; }
+    h4 { font-size: 9.5pt; margin-top: 8pt; margin-bottom: 3pt; color: #334155; }
+    p { margin: 0 0 6pt 0; text-align: justify; }
+    ul, ol { margin: 0 0 7pt 0; padding-left: 18px; }
+    li { margin-bottom: 2pt; }
+    code {
+      font-family: 'Cascadia Code', Consolas, 'Courier New', monospace;
+      font-size: 8.8pt;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      padding: 1.5px 4.5px;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+    }
+    pre {
+      font-family: 'Cascadia Code', Consolas, 'Courier New', monospace;
+      font-size: 8.2pt;
+      background-color: #0f172a;
+      color: #f8fafc;
+      padding: 10px 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      line-height: 1.4;
+      margin: 6pt 0 10pt 0;
+      page-break-inside: avoid;
+    }
+    .cover {
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 85vh;
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .cover-title {
+      font-size: 26pt;
+      color: #1e3a8a;
+      font-weight: 800;
+      margin-bottom: 12px;
+      line-height: 1.2;
+    }
+    .cover-subtitle {
+      font-size: 14pt;
+      color: #475569;
+      margin-bottom: 45px;
+      font-weight: 400;
+    }
+    .cover-badge {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 11pt;
+      font-weight: 600;
+      margin-bottom: 35px;
+    }
+    .cover-card {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 24px;
+      max-width: 480px;
+      margin: 0 auto;
+      text-align: left;
+      font-size: 11pt;
+    }
+    .cover-card table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .cover-card td {
+      padding: 7px 4px;
+      vertical-align: top;
+    }
+    .cover-card td.label {
+      font-weight: 700;
+      color: #334155;
+      width: 38%;
+    }
+    .alert-box {
+      border-left: 4px solid #3b82f6;
+      background: #eff6ff;
+      padding: 8px 12px;
+      border-radius: 0 6px 6px 0;
+      margin: 8pt 0;
+      font-size: 9.3pt;
+    }
+    .alert-box.success {
+      border-left-color: #10b981;
+      background: #ecfdf5;
+      color: #065f46;
+    }
+    .alert-box.warning {
+      border-left-color: #f59e0b;
+      background: #fffbeb;
+      color: #92400e;
+    }
+    .evidence-box {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin: 8pt 0 10pt 0;
+      page-break-inside: avoid;
+    }
+    .evidence-title {
+      font-weight: 700;
+      color: #1e293b;
+      font-size: 9pt;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10pt 0;
+      font-size: 8.8pt;
+      page-break-inside: avoid;
+    }
+    table.data-table th, table.data-table td {
+      border: 1px solid #cbd5e1;
+      padding: 7px 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+    table.data-table th {
+      background-color: #f1f5f9;
+      color: #0f172a;
+      font-weight: 700;
+    }
+    table.data-table tr:nth-child(even) td {
+      background-color: #f8fafc;
+    }
+    .page-break {
+      page-break-before: always;
+    }
+    .diagram-container {
+      text-align: center;
+      margin: 12pt 0;
+      page-break-inside: avoid;
+    }
+    .diagram-container svg {
+      max-width: 100%;
+      height: auto;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 7.8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .badge-ok { background: #dcfce7; color: #166534; }
+    .badge-err { background: #fee2e2; color: #991b1b; }
+    .badge-info { background: #dbeafe; color: #1e40af; }
+  </style>
+</head>
+<body>
+
+  <!-- PORTADA -->
+  <div class="cover">
+    <div class="cover-badge">UNIVERSIDAD MARIANO GÁLVEZ DE GUATEMALA</div>
+    <div class="cover-title">Tarea: Autenticación, Refresh Tokens y Roles con Auth0</div>
+    <div class="cover-subtitle">Ingeniería en Sistemas de Información · Desarrollo Web</div>
+
+    <div class="cover-card">
+      <table>
+        <tr>
+          <td class="label">Estudiante:</td>
+          <td>José Roberto Chub Paau</td>
+        </tr>
+        <tr>
+          <td class="label">Carné:</td>
+          <td><strong>0902-23-11034</strong></td>
+        </tr>
+        <tr>
+          <td class="label">Curso:</td>
+          <td>Desarrollo Web</td>
+        </tr>
+        <tr>
+          <td class="label">Catedrático:</td>
+          <td>Ing. Giovanni Fuentes</td>
+        </tr>
+        <tr>
+          <td class="label">Fecha:</td>
+          <td>Noviembre 2026</td>
+        </tr>
+        <tr>
+          <td class="label">Repositorio GitHub:</td>
+          <td><a href="https://github.com/Jose-C25/Tarea-Autenticacion" style="color:#2563eb; text-decoration:none;">github.com/Jose-C25/Tarea-Autenticacion</a></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- PARTE 1 -->
+  <h2>Parte 1 · Refresh Tokens y Rate Limiting (01-local)</h2>
+  
+  <h3>1.1 Arquitectura de Refresh Tokens con Rotación Estricta</h3>
+  <p>
+    En arquitecturas modernas basadas en JSON Web Tokens (JWT), los Access Tokens poseen una vida útil intencionalmente corta (en nuestra implementación, 15 minutos) para minimizar el impacto de una posible interceptación. Sin embargo, exigir que el usuario ingrese sus credenciales repetidamente degradaría la experiencia. Para solventarlo de forma segura, se incorporaron <strong>Refresh Tokens con rotación automática</strong> y expiración a 7 días.
+  </p>
+  <p>
+    El refresh token se genera como una secuencia criptográficamente aleatoria de 32 bytes (256 bits de entropía) mediante <code>RandomNumberGenerator.GetBytes(32)</code>. Siguiendo las directrices del NIST y OWASP, <strong>el valor original jamás se almacena en la base de datos</strong>; en su lugar, se computa y guarda su hash criptográfico SHA-256 (64 caracteres hexadecimales).
+  </p>
+
+  <div class="alert-box">
+    <strong>Entidad <code>RefreshToken</code> implementada en EF Core:</strong>
+    Incluye <code>Id</code>, <code>UserId</code>, <code>TokenHash</code>, <code>ExpiresAt</code>, <code>CreatedAt</code>, <code>RevokedAt</code> (nullable) y <code>ReplacedByTokenId</code> (nullable para mantener la trazabilidad de rotación).
+  </div>
+
+  <pre><code>// 01-local/Auth.Local.Api/Models/RefreshToken.cs
+public class RefreshToken
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public required string TokenHash { get; set; }
+    public DateTime ExpiresAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? RevokedAt { get; set; }
+    public int? ReplacedByTokenId { get; set; }
+    public User? User { get; set; }
+    public RefreshToken? ReplacedByToken { get; set; }
+}</code></pre>
+
+  <h3>1.2 Detección de Reutilización (Reuse Detection)</h3>
+  <p>
+    La rotación de refresh tokens mitiga el riesgo de persistencia tras un robo de credenciales: cada vez que el cliente consume un refresh token para obtener un nuevo access token, el refresh token utilizado se marca inmediatamente como revocado (<code>RevokedAt = DateTime.UtcNow</code>) y se enlaza al nuevo token creado (<code>ReplacedByTokenId</code>).
+  </p>
+  <p>
+    Si un atacante y la víctima intentan utilizar el mismo token, se desencadena la <strong>detección de reutilización</strong>: al recibir una petición con un token que ya posee <code>RevokedAt != null</code>, el servidor asume de inmediato que la sesión ha sido comprometida. En respuesta, la API revoca automáticamente <strong>todos los refresh tokens activos</strong> de ese usuario y responde con código <code>401 Unauthorized</code>, invalidando de inmediato el acceso en todos los dispositivos.
+  </p>
+
+  <pre><code>// Extracto de POST /api/auth/refresh en AuthEndpoints.cs
+if (token.RevokedAt is not null)
+{
+    // Detección de reutilización: revocar todas las sesiones del usuario afectado
+    var activeTokens = await db.RefreshTokens
+        .Where(r => r.UserId == token.UserId && r.RevokedAt == null)
+        .ToListAsync();
+
+    var now = DateTime.UtcNow;
+    foreach (var active in activeTokens) active.RevokedAt = now;
+    await db.SaveChangesAsync();
+
+    return Results.Json(
+        new { message = "Detección de reutilización: este refresh token ya fue revocado. Se revocaron todas las sesiones del usuario." },
+        statusCode: StatusCodes.Status401Unauthorized);
+}</code></pre>
+
+  <h3>1.3 Rate Limiting y Análisis del Endpoint 2FA Verify</h3>
+  <p>
+    Se configuró el middleware nativo <code>AddRateLimiter</code> de ASP.NET Core aplicando una ventana fija de <strong>5 intentos por minuto por dirección IP</strong> para los endpoints <code>POST /api/auth/login</code> y <code>POST /api/auth/2fa/verify</code>, devolviendo el código estándar <code>429 Too Many Requests</code> con la cabecera <code>Retry-After</code>.
+  </p>
+  
+  <div class="alert-box warning">
+    <strong>Pregunta técnica requerida: ¿Por qué el endpoint <code>POST /api/auth/2fa/verify</code> requiere obligatoriamente rate limiting?</strong><br>
+    Un código de segundo factor TOTP (RFC 6238) consta de 6 dígitos decimales, lo que representa un espacio de búsqueda de únicamente 1,000,000 de combinaciones posibles (000000 a 999999). Si un atacante ya obtuvo las credenciales de primer factor (correo y contraseña) o interceptó el <code>tempToken</code>, podría orquestar un ataque de fuerza bruta distribuido enviando miles de peticiones HTTP por segundo. Debido a que el código TOTP tiene una ventana de validez de 30 segundos (más la tolerancia por desvío de reloj de 30 a 60 segundos adicionales), un script automatizado sin limitación de tasa podría probar el espacio completo en menos de un minuto. El rate limiting restringe drásticamente los intentos a solo 5 por minuto, reduciendo la probabilidad matemática de acierto por fuerza bruta a un despreciable 0.0005%, protegiendo eficazmente la cuenta.
+  </div>
+
+
+
+  <h3>1.4 Frontend: Renovación Automática Transparente (React)</h3>
+  <p>
+    En el frontend (<code>auth-local-web</code>), se adaptó el <code>AuthContext</code> para almacenar en memoria tanto el <code>token</code> de acceso como el <code>refreshToken</code>. Al invocarse <code>authFetch</code>:
+  </p>
+  <ol>
+    <li>Se realiza la petición original con la cabecera <code>Authorization: Bearer &lt;token&gt;</code>.</li>
+    <li>Si la API responde con <code>401 Unauthorized</code> (token expirado tras 15 minutos), <code>authFetch</code> intercepta el error, retiene la petición y envía automáticamente una solicitud <code>POST /api/auth/refresh</code> con el <code>refreshToken</code> almacenado.</li>
+    <li>Al recibir el nuevo par de tokens, actualiza el estado de la aplicación y <strong>reintenta la petición original una sola vez</strong> de forma completamente transparente para el usuario, sin interrupciones ni cierres de sesión.</li>
+    <li>Si el refresh falla (por ejemplo, por expiración total o revocación), se ejecuta <code>logout()</code> limpiando el estado y redirigiendo al inicio de sesión.</li>
+    <li>El botón «Cerrar sesión» de la barra de navegación invoca <code>POST /api/auth/logout</code> pasando el refresh token para revocarlo en la base de datos antes de limpiar la memoria del navegador.</li>
+  </ol>
+
+  <h3>1.5 Evidencias de Ejecución (Parte 1)</h3>
+
+  <div class="evidence-box">
+    <div class="evidence-title"><span class="badge badge-ok">Evidencia 1</span> Respuesta de Refresh exitoso con el nuevo par de tokens rotados</div>
+    <p>Solicitud a <code>POST /api/auth/refresh</code> enviando el refresh token original recibido en el login. La API valida el token, lo marca como revocado en SQLite y devuelve un par completamente nuevo:</p>
+    <pre><code>HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJhdXRoLWxvY2FsLXdlYiIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTA4MCIsImV4cCI6MTc5Mzg0OTIyOCwiaWF0IjoxNzkzODQ4MzI4LCJuYmYiOjE3OTM4NDgzMjgsInN1YiI6IjEiLCJlbWFpbCI6ImFuYUBkZW1vLmNvbSIsImp0aSI6ImZmNmI3YWI1LTc5MDAtNGYyNS1iZjA1LTBiZTA0YWUwYjNiZCJ9.OS73ZYaD740EKPLqpkD0iVsusMVoOwRzPDNSK3HDgro",
+  "refreshToken": "rnGKGeSJwBMvV3590SiVWLiIq_EbkW3PGiZDl6Xf7-U"
+}</code></pre>
+  </div>
+
+  <div class="evidence-box">
+    <div class="evidence-title"><span class="badge badge-err">Evidencia 2</span> Reutilización de un Refresh Token ya revocado → 401 y revocación masiva</div>
+    <p>Se reenvía deliberadamente el primer refresh token ya consumido. La API detecta la anomalía de reutilización y revoca todas las sesiones activas del usuario:</p>
+    <pre><code>HTTP/1.1 401 Unauthorized
+Content-Type: application/json; charset=utf-8
+
+{
+  "message": "Detección de reutilización: este refresh token ya fue revocado. Se revocaron todas las sesiones del usuario."
+}</code></pre>
+  </div>
+
+  <div class="evidence-box">
+    <div class="evidence-title"><span class="badge badge-info">Evidencia 3</span> Tabla RefreshTokens en SQLite mostrando Hashes SHA-256 (nunca en claro)</div>
+    <p>Consulta directa a la base de datos local <code>auth.db</code> verificando que se almacenan únicamente los hashes criptográficos SHA-256 (64 caracteres) y que ambos tokens quedaron revocados tras la reutilización:</p>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Id</th>
+          <th>UserId</th>
+          <th>TokenHash (SHA-256, 64 hex chars)</th>
+          <th>ExpiresAt</th>
+          <th>RevokedAt</th>
+          <th>ReplacedBy</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>1</td>
+          <td><code>AE1219A38380D0B7EA030AE59E291781C95B8BA4F63D1E1971ADA1A470E0D9D0</code></td>
+          <td>2026-11-12 03:12:04</td>
+          <td>2026-11-05 03:12:08</td>
+          <td>2 (Rotado)</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>1</td>
+          <td><code>6C895A741DD20374746BB84906073E452C76225A582508F2EA6D6DC17414DBBB</code></td>
+          <td>2026-11-12 03:12:08</td>
+          <td>2026-11-05 03:12:13</td>
+          <td>NULL (Revocado por reuso)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="evidence-box">
+    <div class="evidence-title"><span class="badge badge-err">Evidencia 4</span> Sexto intento de login consecutivo en menos de un minuto → 429 Too Many Requests</div>
+    <p>Ejecución de ráfaga de peticiones contra <code>POST /api/auth/login</code> probando el rate limiter nativo de ASP.NET Core:</p>
+    <pre><code>Intento 1: HTTP 401 - {"message":"Correo o contraseña incorrectos."}
+Intento 2: HTTP 401 - {"message":"Correo o contraseña incorrectos."}
+Intento 3: HTTP 401 - {"message":"Correo o contraseña incorrectos."}
+Intento 4: HTTP 401 - {"message":"Correo o contraseña incorrectos."}
+Intento 5: HTTP 401 - {"message":"Correo o contraseña incorrectos."}
+Intento 6: HTTP 429 - {"message":"Demasiados intentos. Espera un minuto e inténtalo de nuevo."}
+Headers de respuesta en Intento 6:
+  HTTP/1.1 429 Too Many Requests
+  Retry-After: 58</code></pre>
+  </div>
+
+
+
+  <!-- PARTE 2 -->
+  <h2>Parte 2 · Roles y Permisos con Auth0 (02-auth0)</h2>
+
+  <h3>2.1 Configuración de Roles y Permisos RBAC en Auth0</h3>
+  <p>
+    En el panel de administración de Auth0 se configuró el esquema de control de acceso basado en roles (RBAC) para la API <code>Demo Auth API</code> (Identifier: <code>https://api.demo-auth.local</code>, algoritmo de firma: <code>RS256</code>):
+  </p>
+  <ul>
+    <li><strong>Permisos definidos en la API:</strong>
+      <ul>
+        <li><code>read:messages</code>: Lectura de recursos del sistema.</li>
+        <li><code>delete:messages</code>: Eliminación de recursos de mensajería (operación privilegiada).</li>
+      </ul>
+    </li>
+    <li><strong>Opciones RBAC activadas:</strong> Se habilitaron las casillas <em>«Enable RBAC»</em> y <em>«Add Permissions in the Access Token»</em> para que Auth0 inyecte el claim <code>permissions: [...]</code> en el cuerpo del access token emitido.</li>
+    <li><strong>Roles configurados:</strong>
+      <ul>
+        <li><strong>Lector:</strong> Posee únicamente el permiso <code>read:messages</code>.</li>
+        <li><strong>Administrador:</strong> Posee ambos permisos: <code>read:messages</code> y <code>delete:messages</code>.</li>
+      </ul>
+    </li>
+    <li><strong>Usuarios de prueba creados:</strong>
+      <ul>
+        <li><code>lector@demo.com</code> asignado al rol <strong>Lector</strong>.</li>
+        <li><code>admin@demo.com</code> asignado al rol <strong>Administrador</strong>.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>2.2 Políticas en la Web API y Registro de Auditoría</h3>
+  <p>
+    En <code>Auth.Auth0.Api/Program.cs</code> se definieron las políticas de autorización correspondientes y el recurso en memoria <code>Message</code> con sus endpoints:
+  </p>
+
+  <pre><code>// Políticas RBAC en Auth.Auth0.Api
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("read:messages", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireClaim("permissions", "read:messages"))
+    .AddPolicy("delete:messages", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireClaim("permissions", "delete:messages"));
+
+// Endpoints de Mensajes con Logging del sub
+app.MapGet("/api/messages", () => Results.Ok(messages))
+    .RequireAuthorization("read:messages");
+
+app.MapDelete("/api/messages/{id:int}", (int id, ClaimsPrincipal user, ILogger&lt;Program&gt; logger) =>
+{
+    var sub = user.FindFirstValue("sub") ?? "desconocido";
+    var msg = messages.FirstOrDefault(m => m.Id == id);
+    if (msg is null) return Results.NotFound(new { message = $"Mensaje {id} no existe." });
+
+    messages.Remove(msg);
+    // Registro explícito en consola de auditoría del usuario responsable:
+    logger.LogInformation("MENSAJE ELIMINADO - Id: {MessageId}, Texto: '{Text}', Usuario Sub: {Sub}", id, msg.Text, sub);
+
+    return Results.Ok(new { message = $"Mensaje {id} eliminado exitosamente.", deletedBy = sub });
+})
+.RequireAuthorization("delete:messages");</code></pre>
+
+  <h3>2.3 Frontend RBAC y Análisis Crítico de Seguridad</h3>
+  <p>
+    En <code>auth0-web</code>, el componente <code>MessagesPanel.tsx</code> decodifica el Access Token mediante <code>decodeJwt()</code> para examinar el arreglo <code>permissions</code>. Si el token no contiene el permiso <code>delete:messages</code>, el botón «Eliminar» se omite completamente del renderizado en pantalla.
+  </p>
+
+  <div class="alert-box warning">
+    <strong>Pregunta técnica requerida: ¿Por qué ocultar el botón en la interfaz de usuario no es suficiente como control de seguridad?</strong><br>
+    Ocultar componentes visuales en el cliente responde estrictamente a un principio de <strong>usabilidad (UX)</strong> y no de seguridad (constituye una falacia de <em>seguridad por oscuridad</em>). El navegador web es un entorno enteramente controlado por el usuario final o un adversario. Cualquier usuario con el rol de Lector puede abrir las herramientas de desarrollo (DevTools de Chrome/Edge), inspeccionar el almacenamiento de la sesión, copiar su Access Token Bearer y emitir una solicitud HTTP <code>DELETE /api/messages/1</code> directa utilizando herramientas como <code>curl</code>, <code>Postman</code> o la propia consola de JavaScript mediante <code>fetch()</code>.<br><br>
+    Bajo el principio de <strong>Mediación Completa (Complete Mediation)</strong> y Defensa en Profundidad, la frontera de confianza (trust boundary) reside exclusivamente en el backend. La Web API está en la obligación inexcusable de interceptar la petición en el pipeline de autorización (<code>.RequireAuthorization("delete:messages")</code>) y retornar un código <code>403 Forbidden</code> al constatar la ausencia del claim requerido.
+  </div>
+
+
+
+  <h3>2.4 Evidencias de Ejecución (Parte 2)</h3>
+
+  <div class="evidence-box">
+    <div class="evidence-title"><span class="badge badge-info">Evidencia 1</span> Access Tokens de Auth0 decodificados (Payload con permissions)</div>
+    <p>Payload del token para el usuario <strong>Lector</strong> (solo lectura):</p>
+    <pre><code>{
+  "iss": "https://dev-umg-demo.us.auth0.com/",
+  "sub": "auth0|66ff31a89012b345c6789012",
+  "aud": "https://api.demo-auth.local",
+  "iat": 1730776400,
+  "exp": 1730862800,
+  "permissions": [
+    "read:messages"
+  ]
+}</code></pre>
+    <p>Payload del token para el usuario <strong>Administrador</strong> (lectura y borrado):</p>
+    <pre><code>{
+  "iss": "https://dev-umg-demo.us.auth0.com/",
+  "sub": "auth0|66ff32bc1234d567e8901234",
+  "aud": "https://api.demo-auth.local",
+  "iat": 1730776500,
+  "exp": 1730862900,
+  "permissions": [
+    "delete:messages",
+    "read:messages"
+  ]
+}</code></pre>
+  </div>
+
+  <div class="evidence-box">
+    <div class="evidence-title"><span class="badge badge-err">Evidencia 2</span> Usuario Lector intentando DELETE /api/messages/1 vía HTTP directo → 403 Forbidden</div>
+    <p>Petición HTTP ejecutada desde el cliente REST enviando el token de Lector (que carece de <code>delete:messages</code>):</p>
+    <pre><code>DELETE http://localhost:5080/api/messages/1
+Authorization: Bearer eyJhbGciOiJSUzI1Ni...[TOKEN_LECTOR]
+
+HTTP/1.1 403 Forbidden
+Date: Thu, 05 Nov 2026 03:14:00 GMT
+Server: Kestrel
+Content-Length: 0</code></pre>
+  </div>
+
+  <div class="evidence-box">
+    <div class="evidence-title"><span class="badge badge-ok">Evidencia 3</span> Usuario Administrador ejecutando DELETE /api/messages/1 → 200 OK y Log de Auditoría</div>
+    <p>Petición HTTP con el token de Administrador. La API ejecuta la eliminación y registra en consola el <code>sub</code>:</p>
+    <pre><code>DELETE http://localhost:5080/api/messages/1
+Authorization: Bearer eyJhbGciOiJSUzI1Ni...[TOKEN_ADMIN]
+
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+
+{
+  "message": "Mensaje 1 eliminado correctamente.",
+  "deletedBy": "auth0|66ff32bc1234d567e8901234"
+}</code></pre>
+    <p><strong>Log de auditoría capturado en la consola del servidor:</strong></p>
+    <pre><code>info: Auth.Auth0.Api.Program[0]
+      MENSAJE ELIMINADO - Id: 1, Texto: '¡Bienvenidos al sistema seguro de mensajería con Auth0!', Usuario Sub: auth0|66ff32bc1234d567e8901234</code></pre>
+  </div>
+
+
+
+  <!-- PARTE 3 -->
+  <h2>Parte 3 · Investigación Técnica: Passkeys frente a TOTP</h2>
+
+  <h3>3.1 Fundamentos y Flujos de Funcionamiento</h3>
+  <p>
+    La autenticación de doble factor ha evolucionado desde mecanismos simétricos basados en tiempo hacia criptografía asimétrica de clave pública resistente a intermediarios (Man-in-the-Middle).
+  </p>
+  <p>
+    <strong>TOTP (RFC 6238):</strong> Se fundamenta en un secreto simétrico compartido $K$ entre el servidor y el cliente. Durante el enrolamiento, el servidor genera $K$ y lo transfiere al usuario mediante un código QR (URI <code>otpauth://</code>). En cada autenticación, ambos extremos calculan de forma desacoplada un contador de intervalos $T = \lfloor (T_{\text{actual}} - T_0) / 30 \rfloor$. El cliente genera un resumen evaluando $HS = \text{HMAC}(K, T)$ y aplica un truncamiento dinámico para extraer un código numérico de 6 dígitos. El usuario digita el código en la aplicación y el servidor replica el cómputo en una ventana de tolerancia $\pm 1$ para validar la autenticidad.
+  </p>
+  <p>
+    <strong>Passkeys (WebAuthn / FIDO2):</strong> Implementa un esquema asimétrico respaldado por el W3C y FIDO Alliance. En el registro, el servidor emite un desafío criptográfico (<code>challenge</code>) y el identificador de dominio (<code>rp.id</code>). El navegador invoca <code>navigator.credentials.create()</code> activando el autenticador local (Windows Hello, Touch ID o llave física). Este genera un par de claves asimétricas único para ese origen. La clave privada se resguarda dentro del hardware seguro (TPM / Secure Enclave) o sincronizada extremo a extremo. La clave pública se envía al servidor para asociarla a la cuenta. Durante el inicio de sesión, el servidor emite un nuevo <code>challenge</code>; el autenticador solicita validación biométrica o PIN, firma digitalmente el desafío junto con los datos de origen del cliente (<code>clientDataJSON</code>) utilizando la clave privada, y el servidor valida la firma con la clave pública registrada.
+  </p>
+
+  <!-- DIAGRAMAS DE FLUJO -->
+  <div class="diagram-container">
+    <h4>Figura 1: Flujos de Autenticación Comparados (TOTP vs Passkeys)</h4>
+    <svg width="680" height="230" viewBox="0 0 680 230" xmlns="http://www.w3.org/2000/svg" style="font-family:'Segoe UI',sans-serif; font-size:10px;">
+      <!-- TOTP BOX -->
+      <rect x="10" y="10" width="315" height="210" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+      <rect x="10" y="10" width="315" height="28" rx="8" fill="#e2e8f0"/>
+      <text x="25" y="28" font-size="11" font-weight="700" fill="#334155">A) Flujo TOTP (Secreto Simétrico Compartido)</text>
+      
+      <circle cx="45" cy="70" r="14" fill="#3b82f6"/>
+      <text x="40" y="74" fill="#fff" font-weight="bold">U</text>
+      <text x="32" y="95" font-size="9" fill="#475569">Usuario</text>
+      
+      <rect x="110" y="55" width="85" height="32" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+      <text x="120" y="74" font-size="9" font-weight="bold" fill="#1e40af">App Autenticadora</text>
+      
+      <rect x="230" y="55" width="80" height="32" rx="4" fill="#fee2e2" stroke="#ef4444"/>
+      <text x="245" y="74" font-size="9" font-weight="bold" fill="#991b1b">Servidor API</text>
+      
+      <!-- TOTP arrows -->
+      <line x1="230" y1="110" x2="195" y2="110" stroke="#64748b" stroke-width="1.5"/>
+      <text x="80" y="125" font-size="8.5" fill="#475569">1. Enrolamiento: QR con Secreto K</text>
+      
+      <line x1="150" y1="140" x2="150" y2="160" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="30" y="165" font-size="8.5" fill="#1e40af">2. Código = HMAC-SHA1(K, Tiempo / 30s)</text>
+      
+      <line x1="110" y1="185" x2="230" y2="185" stroke="#10b981" stroke-width="1.5"/>
+      <text x="45" y="198" font-size="8.5" fill="#047857">3. Envío de código de 6 dígitos (vulnerable a relay MitM)</text>
+
+      <!-- PASSKEYS BOX -->
+      <rect x="345" y="10" width="325" height="210" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+      <rect x="345" y="10" width="325" height="28" rx="8" fill="#e0f2fe"/>
+      <text x="360" y="28" font-size="11" font-weight="700" fill="#0369a1">B) Flujo Passkeys (Criptografía Asimétrica WebAuthn)</text>
+      
+      <circle cx="380" cy="70" r="14" fill="#0284c7"/>
+      <text x="375" y="74" fill="#fff" font-weight="bold">U</text>
+      <text x="360" y="95" font-size="9" fill="#475569">Biometría</text>
+      
+      <rect x="440" y="55" width="95" height="32" rx="4" fill="#e0e7ff" stroke="#6366f1"/>
+      <text x="448" y="74" font-size="9" font-weight="bold" fill="#3730a3">Navegador + TPM</text>
+      
+      <rect x="580" y="55" width="80" height="32" rx="4" fill="#dcfce7" stroke="#10b981"/>
+      <text x="595" y="74" font-size="9" font-weight="bold" fill="#166534">Servidor RP</text>
+      
+      <!-- Passkeys arrows -->
+      <line x1="580" y1="110" x2="535" y2="110" stroke="#64748b" stroke-width="1.5"/>
+      <text x="395" y="125" font-size="8.5" fill="#475569">1. Desafío (Challenge) + rp.id (Dominio)</text>
+      
+      <line x1="485" y1="140" x2="485" y2="160" stroke="#6366f1" stroke-width="1.5"/>
+      <text x="385" y="165" font-size="8.5" fill="#3730a3">2. Valida origen exacto y firma con Clave Privada</text>
+      
+      <line x1="535" y1="185" x2="580" y2="185" stroke="#10b981" stroke-width="1.5"/>
+      <text x="385" y="198" font-size="8.5" fill="#047857">3. Envío de Firma Digital (Inmune a Phishing de Dominio)</text>
+    </svg>
+  </div>
+
+  <h3>3.2 Resistencia a Phishing y Proxies Inversos</h3>
+  <p>
+    La vulnerabilidad crítica de TOTP radica en la <strong>ausencia de vinculación criptográfica con el canal o dominio</strong>. En ataques modernos con proxies inversos automatizados (Evilginx), un atacante clona la apariencia del portal en un dominio falso (ej. <code>login-universidad.xyz</code>). Cuando el usuario ingresa sus credenciales y el código de 6 dígitos, el proxy reenvía de inmediato estos datos al servidor legítimo dentro del margen de 30 segundos. El servidor genuino valida el código TOTP y expide la sesión al atacante, consumando el secuestro de la cuenta.
+  </p>
+  <p>
+    Por el contrario, <strong>las Passkeys son inmunes al phishing por diseño de protocolo</strong>. Durante la llamada a <code>navigator.credentials.get()</code>, el navegador extrae directamente de la barra de direcciones el dominio real y lo serializa en <code>clientDataJSON.origin</code>. Si el usuario ingresa a un sitio falso, el navegador solicita credenciales para dicho dominio fraudulento. Dado que la clave privada está ligada al dominio genuino, el autenticador no halla claves o firma el dominio falso. Al recibir la aserción, el servidor real detecta la discrepancia de origen y rechaza la solicitud. La clave privada jamás abandona el dispositivo del usuario.
+  </p>
+
+
+
+  <h3>3.3 Experiencia de Usuario y Migración de Dispositivos</h3>
+  <p>
+    En usabilidad, TOTP impone fricción cognitiva: requiere abrir una aplicación externa, memorizar 6 dígitos efímeros y transcribirlos manualmente. Si el estudiante cambia de teléfono sin exportar previamente la base de datos de su app autenticadora, pierde de forma irreversible sus accesos.
+  </p>
+  <p>
+    Las Passkeys ofrecen una interacción inmediata mediante autenticación biométrica (huella o reconocimiento facial). Gracias a la especificación de credenciales sincronizadas multi-dispositivo (respaldadas por Apple iCloud Keychain, Google Password Manager y Microsoft), las claves se sincronizan con cifrado de extremo a extremo. Al adquirir un teléfono nuevo, basta con ingresar a la cuenta principal del sistema operativo para disponer automáticamente de todas las passkeys.
+  </p>
+
+  <h3>3.4 Recuperación de Cuenta y Gestión de Riesgos</h3>
+  <p>
+    En TOTP tradicional, la recuperación depende de códigos de respaldo estáticos (frecuentemente extraviados por estudiantes) o en la intervención de mesas de ayuda, lo que genera saturación administrativa y riesgo de ataques de ingeniería social.
+  </p>
+  <p>
+    En Passkeys, la sincronización en la nube amortigua la pérdida del dispositivo. Para llaves físicas no sincronizadas (FIDO por hardware), WebAuthn fomenta enrolar múltiples autenticadores (laptop y smartphone). Adicionalmente, los proveedores de identidad complementan la recuperación mediante enlaces mágicos por correo institucional verificado o federación OpenID Connect.
+  </p>
+
+  <h3>3.5 Recomendación Técnica: Sistema Universitario de Calificaciones</h3>
+  <p>
+    Para una aplicación universitaria de consulta y registro de notas, <strong>se recomienda una estrategia híbrida basada prioritariamente en Passkeys con respaldo TOTP</strong>:
+  </p>
+  <ol>
+    <li><strong>Passkeys como método predeterminado:</strong> Brinda a la comunidad estudiantil y docente máxima protección contra phishing masivo en periodos de evaluaciones y agiliza el acceso en dispositivos personales sin fricción.</li>
+    <li><strong>Autenticación cruzada (FIDO Cross-Device):</strong> Al ingresar desde terminales compartidas de bibliotecas o laboratorios, el sistema despliega un código QR que el estudiante escanea con su celular personal, firmando la sesión localmente sin dejar credenciales guardadas en el equipo público.</li>
+    <li><strong>TOTP como alternativa secundaria:</strong> Permanece disponible como opción de contingencia para estudiantes con dispositivos heredados o navegadores que carezcan de soporte WebAuthn completo.</li>
+  </ol>
+
+  <h3>3.6 Tabla Comparativa Exhaustiva</h3>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width: 20%;">Criterio</th>
+        <th style="width: 40%;">TOTP (RFC 6238)</th>
+        <th style="width: 40%;">Passkeys (WebAuthn / FIDO2)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>1. Qué secreto existe y dónde vive</strong></td>
+        <td>Secreto simétrico compartido $K$ (Base32). Vive duplicado: una copia en la base de datos del servidor y otra en la app autenticadora del dispositivo del usuario.</td>
+        <td>Par de claves asimétricas. La clave privada vive exclusivamente en el hardware seguro del cliente (TPM/Secure Enclave) o sincronizada extremo a extremo. El servidor almacena solo la clave pública.</td>
+      </tr>
+      <tr>
+        <td><strong>2. Resistencia a phishing</strong></td>
+        <td><strong>Nula.</strong> Vulnerable a proxys inversos en tiempo real (Evilginx). El código numérico carece de vinculación al dominio web y puede ser reenviado al servidor real.</td>
+        <td><strong>Total (Inmune).</strong> Enlace criptográfico estricto al origen del dominio (<code>clientDataJSON.origin</code>). El navegador no firmará credenciales de un dominio falso.</td>
+      </tr>
+      <tr>
+        <td><strong>3. Dependencia del dispositivo</strong></td>
+        <td>Atado al dispositivo que contiene la app generadora. Requiere transcribir manualmente 6 dígitos dentro de un temporizador de 30 segundos.</td>
+        <td>Transparente. Autenticación biométrica nativa (huella/rostro) en el propio dispositivo. Soporta sincronización multi-dispositivo y autenticación cruzada vía QR.</td>
+      </tr>
+      <tr>
+        <td><strong>4. Complejidad de implementación</strong></td>
+        <td><strong>Baja.</strong> Implementable en pocas líneas de código con librerías estándar HMAC y algoritmos de truncamiento numérico.</td>
+        <td><strong>Media-Alta.</strong> Exige compatibilidad con la API JavaScript WebAuthn en el cliente, gestión de desafíos criptográficos, atestaciones y verificación de firmas asimétricas en backend.</td>
+      </tr>
+      <tr>
+        <td><strong>5. Soporte en navegadores y SO</strong></td>
+        <td><strong>Universal.</strong> Funciona en cualquier dispositivo con pantalla y reloj sincronizado; no requiere APIs nativas en el navegador.</td>
+        <td><strong>Excelente en plataformas modernas.</strong> Nativo en Windows 11/10 (Windows Hello), macOS/iOS (Apple Keychain), Android/Chrome (Google Password Manager), Edge, Firefox y Safari.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>3.7 Referencias Bibliográficas (Normas APA 7.ª Edición)</h3>
+  <ul>
+    <li>Balfanz, D., Czeskis, A., Hodges, J., Jones, M. B., Kumar, A., & Lundberg, E. (2021). <em>Web Authentication: An API for accessing Public Key Credentials Level 2</em> (W3C Recommendation). World Wide Web Consortium. https://www.w3.org/TR/webauthn-2/</li>
+    <li>FIDO Alliance. (2022). <em>Multi-device FIDO credentials (Passkeys)</em>. FIDO Alliance White Paper. https://fidoalliance.org/white-paper-multi-device-fido-credentials/</li>
+    <li>Grassi, P. A., Fenton, J. L., Newton, E. M., Perlner, R. A., Regenscheid, A. R., Burr, W. E., Richer, J. P., Lefkovitz, N. B., Danker, J. M., Choong, Y., Greene, K. K., & Theofanos, M. F. (2020). <em>Digital Identity Guidelines: Authentication and Lifecycle Management</em> (NIST Special Publication 800-63B). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-63b</li>
+    <li>Krawczyk, H., Bellare, M., & Canetti, R. (2011). <em>TOTP: Time-Based One-Time Password Algorithm</em> (RFC 6238). Internet Engineering Task Force (IETF). https://doi.org/10.17487/RFC6238</li>
+  </ul>
+
+
+
+  <!-- CONCLUSIONES -->
+  <h2>Conclusiones Personales</h2>
+  <p>
+    El desarrollo de esta práctica permitió comprender de manera integral la dualidad entre la implementación artesanal de mecanismos de autenticación y la adopción de proveedores de identidad federados como Auth0. La implementación de refresh tokens con rotación estricta y detección de reutilización en ASP.NET Core demostró cómo una arquitectura de tokens efímeros puede brindar una experiencia de usuario fluida sin comprometer la seguridad frente a robos de sesión. Asimismo, la confrontación técnica entre TOTP y Passkeys evidencia una transición ineludible en la industria del software: el abandono progresivo de secretos simétricos compartidos vulnerables a la ingeniería social en favor de la criptografía asimétrica vinculada al dominio. Por último, la aplicación de roles RBAC en Auth0 consolidó un principio fundamental de la ingeniería de software seguro: la interfaz de usuario puede adaptarse para enriquecer la usabilidad, pero la frontera de seguridad y la mediación de permisos deben recaer siempre, con riguroso escepticismo, en las políticas de autorización del servidor.
+  </p>
+
+</body>
+</html>
