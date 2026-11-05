@@ -35,41 +35,29 @@ builder.Services.AddCors(options =>
 });
 
 // Autenticación con JWT Bearer emitidos por Auth0.
-//
-// ¿Por qué aquí NO hay llave secreta (a diferencia de la Parte A)?
-// Auth0 firma los access tokens con RS256 (criptografía ASIMÉTRICA):
-//   - Auth0 guarda la llave PRIVADA y es el único que puede firmar.
-//   - Publica las llaves PÚBLICAS en https://{domain}/.well-known/jwks.json (JWKS).
-// Con Authority, la API descarga https://{domain}/.well-known/openid-configuration,
-// de ahí obtiene la URL del JWKS y cachea las llaves públicas para verificar firmas.
-// Una llave pública solo sirve para VERIFICAR, no para firmar: no es un secreto.
-// Si Auth0 rota sus llaves, la API las vuelve a descargar automáticamente.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        // Issuer esperado (claim "iss") y origen del JWKS.
         options.Authority = $"https://{auth0Domain}/";
-
-        // Audience esperada (claim "aud"): el token debe haber sido pedido PARA esta API.
         options.Audience = auth0Audience;
-
-        // Conservamos los nombres originales de los claims ("sub", "permissions").
         options.MapInboundClaims = false;
-
         options.TokenValidationParameters = new TokenValidationParameters
         {
             NameClaimType = "sub",
         };
     });
 
-// Política basada en PERMISOS (RBAC de Auth0).
-// Con "Enable RBAC" + "Add Permissions in the Access Token" activos en la API de Auth0,
-// el access token trae:  "permissions": ["read:messages"].
-// Un usuario autenticado SIN ese permiso recibe 403 (autenticado, pero no autorizado).
+// Políticas basadas en PERMISOS (RBAC de Auth0).
+// Con "Enable RBAC" + "Add Permissions in the Access Token" activos en Auth0:
+// - Lector tiene: "read:messages"
+// - Administrador tiene: "read:messages" y "delete:messages"
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("read:messages", policy => policy
         .RequireAuthenticatedUser()
-        .RequireClaim("permissions", "read:messages"));
+        .RequireClaim("permissions", "read:messages"))
+    .AddPolicy("delete:messages", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireClaim("permissions", "delete:messages"));
 
 var app = builder.Build();
 
@@ -84,6 +72,16 @@ if (app.Environment.IsDevelopment())
 app.UseCors("web");
 app.UseAuthentication();
 app.UseAuthorization();
+
+// ---------------------------------------------------------------
+// Recurso en memoria: Mensajes (Parte 2)
+// ---------------------------------------------------------------
+var messages = new List<Message>
+{
+    new(1, "¡Bienvenidos al sistema seguro de mensajería con Auth0!", "auth0|sistema"),
+    new(2, "Este mensaje contiene avisos generales para todos los lectores.", "auth0|sistema"),
+    new(3, "Operación administrativa sensible: solo eliminable por Administradores.", "auth0|admin")
+};
 
 // ---------------------------------------------------------------
 // Endpoints
@@ -114,8 +112,36 @@ app.MapGet("/api/private-scoped", (ClaimsPrincipal user) => Results.Ok(new
 }))
 .RequireAuthorization("read:messages");
 
+// GET /api/messages -> requiere read:messages
+app.MapGet("/api/messages", () => Results.Ok(messages))
+    .RequireAuthorization("read:messages");
+
+// DELETE /api/messages/{id} -> requiere delete:messages
+// Al borrar, registra en el log el sub del usuario que hizo la operación
+app.MapDelete("/api/messages/{id:int}", (int id, ClaimsPrincipal user, ILogger<Program> logger) =>
+{
+    var sub = user.FindFirstValue("sub") ?? "desconocido";
+    var msg = messages.FirstOrDefault(m => m.Id == id);
+    if (msg is null)
+    {
+        return Results.NotFound(new { message = $"No se encontró el mensaje con id {id}." });
+    }
+
+    messages.Remove(msg);
+    logger.LogInformation("MENSAJE ELIMINADO - Id: {MessageId}, Texto: '{Text}', Usuario Sub: {Sub}", id, msg.Text, sub);
+
+    return Results.Ok(new
+    {
+        message = $"Mensaje {id} eliminado correctamente.",
+        deletedBy = sub
+    });
+})
+.RequireAuthorization("delete:messages");
+
 app.Run();
 
 // El arreglo "permissions" del JWT llega como varios claims con el mismo nombre.
 static string[] GetPermissions(ClaimsPrincipal user) =>
     user.FindAll("permissions").Select(c => c.Value).ToArray();
+
+public record Message(int Id, string Text, string CreatedBy);

@@ -12,33 +12,45 @@ Access-Control-Request-Method: GET
 Access-Control-Request-Headers: authorization
 
 # ---------------------------------------------------------------
-# Para obtener un access token de Auth0:
-#   a) Inicia sesión en auth0-web (http://localhost:5173), panel "Access token", botón Copiar.
-#   b) O en el dashboard de Auth0: Applications > APIs > Demo Auth API > Test.
-# Pega el token en la variable de abajo.
+# Tokens de Auth0:
+# Obtén los tokens iniciando sesión en http://localhost:5173 con cada usuario,
+# o usando el botón "Test" en Auth0 Dashboard > Applications > APIs > Demo Auth API.
 # ---------------------------------------------------------------
-@token = PEGA_AQUI_EL_ACCESS_TOKEN
-@tokenSinRol = PEGA_AQUI_EL_ACCESS_TOKEN_DE_UN_USUARIO_SIN_ROL
+@tokenLector = PEGA_AQUI_EL_ACCESS_TOKEN_DEL_USUARIO_LECTOR
+@tokenAdmin = PEGA_AQUI_EL_ACCESS_TOKEN_DEL_USUARIO_ADMINISTRADOR
 
-### Público (anónimo) -> 200
+### 1. Público (anónimo) -> 200
 GET {{api}}/api/public
 
-### ERROR INTENCIONAL: privado SIN token -> 401
+### 2. Privado SIN token -> 401
 GET {{api}}/api/private
 
-### Privado con token -> 200 (incluye sub y permissions)
+### 3. Privado con token -> 200 (incluye sub y permissions)
 GET {{api}}/api/private
-Authorization: Bearer {{token}}
+Authorization: Bearer {{tokenLector}}
 
-### Con permiso read:messages (usuario CON el rol) -> 200
-GET {{api}}/api/private-scoped
-Authorization: Bearer {{token}}
+# ===============================================================
+# Endpoints de Mensajes (Parte 2 de la Tarea)
+# ===============================================================
 
-### ERROR INTENCIONAL: usuario SIN el rol -> 403 (autenticado, pero sin permiso)
-GET {{api}}/api/private-scoped
-Authorization: Bearer {{tokenSinRol}}
+### 4. GET /api/messages con rol Lector -> 200 OK (requiere 'read:messages')
+GET {{api}}/api/messages
+Authorization: Bearer {{tokenLector}}
 
-### ERROR INTENCIONAL: token de la Parte A en esta API -> 401
-# Firma HS256 con otra llave, otro iss y otra aud: Auth0 no lo emitió.
-GET {{api}}/api/private
-Authorization: Bearer PEGA_AQUI_UN_TOKEN_DE_LA_PARTE_A
+### 5. GET /api/messages con rol Administrador -> 200 OK (requiere 'read:messages')
+GET {{api}}/api/messages
+Authorization: Bearer {{tokenAdmin}}
+
+### 6. DELETE /api/messages/1 con rol Lector -> 403 Forbidden (EVIDENCIA REQUERIDA)
+# El usuario Lector solo tiene 'read:messages'. No tiene 'delete:messages'.
+DELETE {{api}}/api/messages/1
+Authorization: Bearer {{tokenLector}}
+
+### 7. DELETE /api/messages/1 con rol Administrador -> 200 OK (EVIDENCIA REQUERIDA)
+# El usuario Administrador posee 'delete:messages'. El servidor registra el 'sub' en consola.
+DELETE {{api}}/api/messages/1
+Authorization: Bearer {{tokenAdmin}}
+
+### 8. GET /api/messages tras la eliminación -> 200 OK (muestra la lista actualizada)
+GET {{api}}/api/messages
+Authorization: Bearer {{tokenAdmin}}

@@ -1,6 +1,7 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import AccessTokenPanel from './components/AccessTokenPanel'
 import ApiPanel from './components/ApiPanel'
+import MessagesPanel from './components/MessagesPanel'
 import NavBar from './components/NavBar'
 import ProfileCard from './components/ProfileCard'
 import { config } from './config'
@@ -21,6 +22,7 @@ export default function App() {
         ) : isAuthenticated ? (
           <>
             <ProfileCard />
+            <MessagesPanel />
             <ApiPanel />
             <AccessTokenPanel />
           </>
