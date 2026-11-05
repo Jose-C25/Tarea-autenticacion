@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
-import { apiFetch } from '../api/apiFetch'
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
+import { apiFetch, ApiError } from '../api/apiFetch'
 
 /*
  * ¿DÓNDE GUARDAR EL TOKEN EN EL NAVEGADOR?
@@ -18,36 +18,122 @@ import { apiFetch } from '../api/apiFetch'
  *    + El navegador la envía sola en cada petición.
  *    - Hay que protegerse de CSRF (SameSite, tokens anti-CSRF) y configurar CORS con credenciales.
  *    Es la opción recomendada en producción (por ejemplo con el patrón BFF).
- *
- * Para la demo usamos memoria: es simple y nos obliga a ver la expiración del token.
  */
 
 interface AuthContextValue {
   token: string | null
+  refreshToken: string | null
   isAuthenticated: boolean
-  login: (accessToken: string) => void
-  logout: () => void
-  /** apiFetch que ya incluye el token y cierra sesión ante un 401. */
+  login: (accessToken: string, refreshToken: string) => void
+  logout: () => Promise<void>
+  /** apiFetch que incluye el token, renueva automáticamente ante 401 y reintenta una sola vez. */
   authFetch: <T>(path: string, init?: RequestInit) => Promise<T>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // El token vive SOLO en esta variable de estado.
+  // Los tokens viven en estado de React (memoria)
   const [token, setToken] = useState<string | null>(null)
+  const [refreshToken, setRefreshToken] = useState<string | null>(null)
 
-  const login = useCallback((accessToken: string) => setToken(accessToken), [])
-  const logout = useCallback(() => setToken(null), [])
+  // Referencias para leer el valor actual dentro de callbacks asíncronos sin problemas de closure
+  const tokenRef = useRef<string | null>(token)
+  tokenRef.current = token
+  const refreshTokenRef = useRef<string | null>(refreshToken)
+  refreshTokenRef.current = refreshToken
+
+  const login = useCallback((accessToken: string, newRefreshToken: string) => {
+    setToken(accessToken)
+    setRefreshToken(newRefreshToken)
+  }, [])
+
+  const logout = useCallback(async () => {
+    const currentRefresh = refreshTokenRef.current
+    setToken(null)
+    setRefreshToken(null)
+
+    if (currentRefresh) {
+      try {
+        await apiFetch('/api/auth/logout', {
+          method: 'POST',
+          body: JSON.stringify({ refreshToken: currentRefresh }),
+        })
+      } catch {
+        // Ignoramos error en el backend durante el logout
+      }
+    }
+  }, [])
+
+  // Promesa para sincronizar llamadas simultáneas y evitar múltiples llamadas a refresh
+  const refreshPromiseRef = useRef<Promise<{ accessToken: string; refreshToken: string }> | null>(null)
 
   const authFetch = useCallback(
-    <T,>(path: string, init?: RequestInit) => apiFetch<T>(path, init, { token, onUnauthorized: logout }),
-    [token, logout],
+    async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
+      const currentToken = tokenRef.current
+
+      try {
+        // Primer intento con el token actual
+        return await apiFetch<T>(path, init, { token: currentToken })
+      } catch (err) {
+        // Si no es error 401, propagar
+        if (!(err instanceof ApiError) || err.status !== 401) {
+          throw err
+        }
+
+        const currentRefresh = refreshTokenRef.current
+        if (!currentRefresh) {
+          await logout()
+          throw err
+        }
+
+        // Token expirado o no autorizado: intentamos renovación automática con /api/auth/refresh
+        try {
+          if (!refreshPromiseRef.current) {
+            refreshPromiseRef.current = apiFetch<{ accessToken: string; refreshToken: string }>(
+              '/api/auth/refresh',
+              {
+                method: 'POST',
+                body: JSON.stringify({ refreshToken: currentRefresh }),
+              },
+            ).finally(() => {
+              refreshPromiseRef.current = null
+            })
+          }
+
+          const newPair = await refreshPromiseRef.current
+
+          // Guardamos el nuevo par rotado
+          setToken(newPair.accessToken)
+          setRefreshToken(newPair.refreshToken)
+
+          // Reintentamos la petición original una sola vez con el nuevo access token
+          return await apiFetch<T>(path, init, {
+            token: newPair.accessToken,
+            onUnauthorized: () => {
+              logout()
+            },
+          })
+        } catch (refreshErr) {
+          // Si el refresh falla (ej: 401 por expirado o detección de reutilización), cerramos sesión
+          await logout()
+          throw refreshErr
+        }
+      }
+    },
+    [logout],
   )
 
   const value = useMemo(
-    () => ({ token, isAuthenticated: token !== null, login, logout, authFetch }),
-    [token, login, logout, authFetch],
+    () => ({
+      token,
+      refreshToken,
+      isAuthenticated: token !== null,
+      login,
+      logout,
+      authFetch,
+    }),
+    [token, refreshToken, login, logout, authFetch],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

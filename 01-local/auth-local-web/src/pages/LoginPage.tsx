@@ -5,9 +5,11 @@ import { useAuth } from '../auth/AuthContext'
 import { decodeJwt } from '../auth/jwt'
 
 // El login responde una de dos formas:
-//  - sin 2FA: { accessToken }
+//  - sin 2FA: { accessToken, refreshToken }
 //  - con 2FA: { requires2fa: true, tempToken }
-type LoginResponse = { accessToken: string } | { requires2fa: true; tempToken: string }
+type LoginResponse =
+  | { accessToken: string; refreshToken: string }
+  | { requires2fa: true; tempToken: string }
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -22,8 +24,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  function finish(accessToken: string) {
-    login(accessToken) // el token queda SOLO en memoria
+  function finish(accessToken: string, refreshToken: string) {
+    login(accessToken, refreshToken) // ambos tokens quedan en memoria
     navigate(from, { replace: true })
   }
 
@@ -49,19 +51,19 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       })
       if ('requires2fa' in result) setTempToken(result.tempToken)
-      else finish(result.accessToken)
+      else finish(result.accessToken, result.refreshToken)
     })
   }
 
-  // Paso 2 (solo con 2FA): tempToken + código TOTP -> accessToken real
+  // Paso 2 (solo con 2FA): tempToken + código TOTP -> accessToken + refreshToken
   const handleCode = (e: FormEvent) => {
     e.preventDefault()
     run(async () => {
-      const result = await apiFetch<{ accessToken: string }>('/api/auth/2fa/verify', {
+      const result = await apiFetch<{ accessToken: string; refreshToken: string }>('/api/auth/2fa/verify', {
         method: 'POST',
         body: JSON.stringify({ tempToken, code }),
       })
-      finish(result.accessToken)
+      finish(result.accessToken, result.refreshToken)
     })
   }
 

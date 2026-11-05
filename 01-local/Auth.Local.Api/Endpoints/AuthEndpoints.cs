@@ -17,9 +17,15 @@ public static class AuthEndpoints
         var group = app.MapGroup("/api/auth");
 
         group.MapPost("/register", Register);
-        // Solo el login tiene límite de intentos (ver AddRateLimiter en Program.cs).
+        // Solo el login tiene límite de intentos (5 por minuto por IP, ver AddRateLimiter en Program.cs).
         group.MapPost("/login", Login)
             .RequireRateLimiting(RateLimitPolicies.Login);
+
+        // Renovación de tokens con rotación y detección de reutilización
+        group.MapPost("/refresh", Refresh);
+
+        // Cierre de sesión (revoca el refresh token)
+        group.MapPost("/logout", Logout);
 
         return app;
     }
@@ -92,7 +98,108 @@ public static class AuthEndpoints
         if (user.TwoFactorEnabled)
             return Results.Ok(new { requires2fa = true, tempToken = tokens.CreateTwoFactorToken(user) });
 
-        return Results.Ok(new { accessToken = tokens.CreateAccessToken(user) });
+        // Sin 2FA: emitimos par (accessToken + refreshToken rotativo)
+        var accessToken = tokens.CreateAccessToken(user);
+        var (rawRefreshToken, refreshTokenEntity) = tokens.CreateRefreshToken(user.Id);
+
+        db.RefreshTokens.Add(refreshTokenEntity);
+        await db.SaveChangesAsync();
+
+        return Results.Ok(new
+        {
+            accessToken,
+            refreshToken = rawRefreshToken
+        });
+    }
+
+    // POST /api/auth/refresh
+    private static async Task<IResult> Refresh(
+        RefreshRequest request,
+        AppDbContext db,
+        TokenService tokens)
+    {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+            return Results.Json(new { message = "El refresh token es requerido." }, statusCode: StatusCodes.Status401Unauthorized);
+
+        var hash = TokenService.HashToken(request.RefreshToken);
+        var token = await db.RefreshTokens.SingleOrDefaultAsync(r => r.TokenHash == hash);
+
+        if (token is null)
+            return Results.Json(new { message = "Refresh token no válido." }, statusCode: StatusCodes.Status401Unauthorized);
+
+        // Detección de reutilización (Reuse Detection):
+        // Si llega un refresh token que ya fue revocado, significa que alguien está intentando
+        // usar un token viejo (posible compromiso o robo). Revocamos inmediatamente todos
+        // los refresh tokens activos del usuario y respondemos 401.
+        if (token.RevokedAt is not null)
+        {
+            var activeTokens = await db.RefreshTokens
+                .Where(r => r.UserId == token.UserId && r.RevokedAt == null)
+                .ToListAsync();
+
+            var now = DateTime.UtcNow;
+            foreach (var active in activeTokens)
+            {
+                active.RevokedAt = now;
+            }
+
+            await db.SaveChangesAsync();
+
+            return Results.Json(
+                new { message = "Detección de reutilización: este refresh token ya fue revocado. Se revocaron todas las sesiones del usuario." },
+                statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        // Validación de expiración (7 días)
+        if (token.ExpiresAt <= DateTime.UtcNow)
+        {
+            return Results.Json(new { message = "El refresh token ha expirado." }, statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        var user = await db.Users.FindAsync(token.UserId);
+        if (user is null)
+            return Results.Unauthorized();
+
+        // Rotación de token:
+        // 1. Marcar el token usado como revocado
+        token.RevokedAt = DateTime.UtcNow;
+
+        // 2. Generar el nuevo refresh token
+        var (newRawRefreshToken, newRefreshTokenEntity) = tokens.CreateRefreshToken(token.UserId);
+        db.RefreshTokens.Add(newRefreshTokenEntity);
+        await db.SaveChangesAsync();
+
+        // 3. Registrar el ID del token reemplazante
+        token.ReplacedByTokenId = newRefreshTokenEntity.Id;
+        await db.SaveChangesAsync();
+
+        // 4. Generar nuevo access token
+        var newAccessToken = tokens.CreateAccessToken(user);
+
+        return Results.Ok(new
+        {
+            accessToken = newAccessToken,
+            refreshToken = newRawRefreshToken
+        });
+    }
+
+    // POST /api/auth/logout
+    private static async Task<IResult> Logout(
+        LogoutRequest request,
+        AppDbContext db)
+    {
+        if (!string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            var hash = TokenService.HashToken(request.RefreshToken);
+            var token = await db.RefreshTokens.SingleOrDefaultAsync(r => r.TokenHash == hash);
+            if (token is not null && token.RevokedAt is null)
+            {
+                token.RevokedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        return Results.Ok(new { message = "Sesión cerrada correctamente." });
     }
 
     // Mensaje GENÉRICO: no decimos si falló el correo o la contraseña,

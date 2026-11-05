@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Auth.Local.Api.Models;
 using Microsoft.Extensions.Options;
@@ -9,6 +10,7 @@ namespace Auth.Local.Api.Auth;
 /// <summary>
 /// Emite los JWT de la aplicación usando JsonWebTokenHandler (el handler moderno,
 /// más rápido que el antiguo JwtSecurityTokenHandler).
+/// También genera y valida refresh tokens criptográficamente seguros.
 /// </summary>
 public class TokenService(IOptions<JwtOptions> options)
 {
@@ -26,6 +28,39 @@ public class TokenService(IOptions<JwtOptions> options)
             user,
             TimeSpan.FromMinutes(_jwt.TwoFactorTokenMinutes),
             new Dictionary<string, object> { [AuthClaims.Purpose] = AuthClaims.TwoFactorPurpose });
+
+    /// <summary>
+    /// Genera un refresh token criptográficamente seguro de 32 bytes con RandomNumberGenerator,
+    /// calcula su hash SHA-256 y prepara la entidad con expiración a 7 días.
+    /// Nunca se guarda el valor en claro en la BD.
+    /// </summary>
+    public (string RawToken, RefreshToken Entity) CreateRefreshToken(int userId)
+    {
+        var randomBytes = RandomNumberGenerator.GetBytes(32);
+        var rawToken = Base64UrlEncoder.Encode(randomBytes);
+        var hash = HashToken(rawToken);
+
+        var now = DateTime.UtcNow;
+        var entity = new RefreshToken
+        {
+            UserId = userId,
+            TokenHash = hash,
+            CreatedAt = now,
+            ExpiresAt = now.AddDays(7) // Vence en 7 días
+        };
+
+        return (rawToken, entity);
+    }
+
+    /// <summary>
+    /// Calcula el hash criptográfico SHA-256 de un token en claro.
+    /// </summary>
+    public static string HashToken(string token)
+    {
+        var bytes = Encoding.UTF8.GetBytes(token);
+        var hashBytes = SHA256.HashData(bytes);
+        return Convert.ToHexString(hashBytes);
+    }
 
     /// <summary>
     /// Valida un tempToken del 2FA (firma, issuer, audience, expiración y purpose).

@@ -23,7 +23,7 @@ Content-Type: application/json
   "password": "123"
 }
 
-### Login correcto -> 200 { accessToken }
+### Login correcto -> 200 { accessToken, refreshToken }
 # @name login
 POST {{api}}/api/auth/login
 Content-Type: application/json
@@ -31,6 +31,70 @@ Content-Type: application/json
 {
   "email": "ana@demo.com",
   "password": "Secreta123"
+}
+
+### Perfil CON access token -> 200 (usa el token de la petición "login" de arriba)
+GET {{api}}/api/profile
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### Renovación exitosa con rotación de Refresh Token -> 200 { accessToken, refreshToken }
+# El refresh token enviado se revoca y se entrega un par completamente nuevo
+# @name refreshExitoso
+POST {{api}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{login.response.body.$.refreshToken}}"
+}
+
+### Perfil con el nuevo access token rotado -> 200
+GET {{api}}/api/profile
+Authorization: Bearer {{refreshExitoso.response.body.$.accessToken}}
+
+### REUTILIZACIÓN DE TOKEN (Reuse Detection) -> 401
+# Reenviamos el primer refresh token (que ya fue revocado en la petición anterior).
+# La API detecta la anomalía, revoca TODOS los tokens activos de 'ana' y devuelve 401.
+POST {{api}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{login.response.body.$.refreshToken}}"
+}
+
+### Intentar renovar con el token que estaba activo antes de la reutilización -> 401
+# Debido a la detección de reutilización, también fue revocado.
+POST {{api}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshExitoso.response.body.$.refreshToken}}"
+}
+
+### Logout -> 200 (revoca el refresh token)
+# Primero hacemos un nuevo login para obtener un token fresco:
+# @name loginLogout
+POST {{api}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "ana@demo.com",
+  "password": "Secreta123"
+}
+
+### Ejecutar Logout con el refresh token
+POST {{api}}/api/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{loginLogout.response.body.$.refreshToken}}"
+}
+
+### Intentar renovar con el token recién deslogueado -> 401 (ya está revocado)
+POST {{api}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{loginLogout.response.body.$.refreshToken}}"
 }
 
 ### Login con contraseña incorrecta -> 401 (mensaje genérico)
@@ -51,37 +115,14 @@ Content-Type: application/json
   "password": "Secreta123"
 }
 
-### Perfil CON token -> 200 (usa el token de la petición "login" de arriba)
-GET {{api}}/api/profile
-Authorization: Bearer {{login.response.body.$.accessToken}}
-
 ### ERROR INTENCIONAL: perfil SIN token -> 401
 GET {{api}}/api/profile
 
 ### ERROR INTENCIONAL: token modificado a mano -> 401 (invalid_token: firma inválida)
-# Copia el token del login, cambia una letra del payload (la parte del medio) y pégalo aquí.
 GET {{api}}/api/profile
 Authorization: Bearer PEGA_AQUI_EL_TOKEN_MODIFICADO
 
-### ERROR INTENCIONAL: token expirado -> 401 (cabecera WWW-Authenticate: "The token expired...")
-# Arranca la API con tokens de 1 minuto:  dotnet run -- --Jwt:AccessTokenMinutes=1
-# Haz login, espera ~1,5 min (1 min + 30 s de ClockSkew) y ejecuta esta petición.
-GET {{api}}/api/profile
-Authorization: Bearer {{login.response.body.$.accessToken}}
-
-### CORS: preflight desde el frontend permitido -> 204 con Access-Control-Allow-Origin
-OPTIONS {{api}}/api/profile
-Origin: http://localhost:5173
-Access-Control-Request-Method: GET
-Access-Control-Request-Headers: authorization
-
-### CORS: preflight desde un origen NO permitido -> sin cabecera Access-Control-Allow-Origin
-OPTIONS {{api}}/api/profile
-Origin: http://sitio-malicioso.com
-Access-Control-Request-Method: GET
-Access-Control-Request-Headers: authorization
-
-### ERROR INTENCIONAL: rate limiting -> ejecuta esta petición 6 veces seguidas.
+### ERROR INTENCIONAL: rate limiting en LOGIN -> ejecuta esta petición 6 veces seguidas.
 # Las 5 primeras responden 401; la 6.ª responde 429 Too Many Requests (con cabecera Retry-After).
 POST {{api}}/api/auth/login
 Content-Type: application/json
@@ -89,6 +130,16 @@ Content-Type: application/json
 {
   "email": "ana@demo.com",
   "password": "fuerza-bruta"
+}
+
+### ERROR INTENCIONAL: rate limiting en 2FA VERIFY -> ejecuta esta petición 6 veces seguidas.
+# Las 5 primeras responden 401; la 6.ª responde 429 Too Many Requests (con cabecera Retry-After).
+POST {{api}}/api/auth/2fa/verify
+Content-Type: application/json
+
+{
+  "tempToken": "token-invalido",
+  "code": "123456"
 }
 
 # ===============================================================
@@ -105,7 +156,7 @@ Content-Type: application/json
   "password": "Secreta123"
 }
 
-### 2FA.2 Login de beto (aún sin 2FA) -> 200 { accessToken }
+### 2FA.2 Login de beto (aún sin 2FA) -> 200 { accessToken, refreshToken }
 # @name betoLogin
 POST {{api}}/api/auth/login
 Content-Type: application/json
@@ -116,7 +167,6 @@ Content-Type: application/json
 }
 
 ### 2FA.3 Setup -> 200 { secret, otpauthUri }
-# Escanea el QR (Parte A, frontend) o escribe el "secret" a mano en tu app autenticadora.
 POST {{api}}/api/auth/2fa/setup
 Authorization: Bearer {{betoLogin.response.body.$.accessToken}}
 
@@ -140,11 +190,10 @@ Content-Type: application/json
 }
 
 ### ERROR INTENCIONAL: usar el tempToken en /api/profile -> 403
-# El token está bien firmado (autenticado), pero su claim purpose = "2fa" no está autorizado.
 GET {{api}}/api/profile
 Authorization: Bearer {{betoLogin2fa.response.body.$.tempToken}}
 
-### 2FA.6 Verify con tempToken + código -> 200 { accessToken } (código incorrecto -> 401)
+### 2FA.6 Verify con tempToken + código -> 200 { accessToken, refreshToken }
 # @name betoVerify
 POST {{api}}/api/auth/2fa/verify
 Content-Type: application/json

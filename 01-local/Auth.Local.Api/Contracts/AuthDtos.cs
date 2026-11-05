@@ -7,6 +7,10 @@ public record RegisterRequest(string Email, string Password);
 
 public record LoginRequest(string Email, string Password);
 
+public record RefreshRequest(string RefreshToken);
+
+public record LogoutRequest(string? RefreshToken);
+
 // --- 2FA (TOTP) ---
 
 public record TwoFactorCodeRequest(string Code);

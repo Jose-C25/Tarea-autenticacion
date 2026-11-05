@@ -9,12 +9,13 @@ interface Profile {
 }
 
 export default function ProfilePage() {
-  const { token, authFetch } = useAuth()
+  const { token, refreshToken, authFetch } = useAuth()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Llama al endpoint protegido. Si el token expiró, la API responde 401,
-  // apiFetch cierra la sesión y ProtectedRoute nos manda a /login.
+  // authFetch llama automáticamente a /api/auth/refresh, renueva los tokens
+  // y reintenta la petición original de forma transparente.
   const loadProfile = useCallback(async () => {
     setError(null)
     try {
@@ -42,7 +43,7 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {token && <TokenPanel token={token} />}
+      {token && <TokenPanel token={token} refreshToken={refreshToken} />}
     </>
   )
 }

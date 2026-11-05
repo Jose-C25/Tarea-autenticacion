@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { decodeJwt } from '../auth/jwt'
 
 /** Panel didáctico: muestra el JWT, su contenido y cuánto le queda de vida. */
-export default function TokenPanel({ token }: { token: string }) {
+export default function TokenPanel({ token, refreshToken }: { token: string; refreshToken?: string | null }) {
   const decoded = decodeJwt(token)
   const now = useNow()
 
@@ -13,7 +13,7 @@ export default function TokenPanel({ token }: { token: string }) {
 
   return (
     <section className="card">
-      <h2>Token actual</h2>
+      <h2>Token actual (Access Token)</h2>
       <p className="muted">Solo para fines didácticos: en una app real no se muestra el token.</p>
 
       {/* Las tres partes del JWT con colores distintos */}
@@ -34,6 +34,16 @@ export default function TokenPanel({ token }: { token: string }) {
           </span>
         )}
       </p>
+
+      {refreshToken && (
+        <>
+          <h3>Refresh Token (rotativo)</h3>
+          <p className="muted">Token opaco de 32 bytes aleatorios. Vence en 7 días:</p>
+          <pre style={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap', color: '#1098ad' }}>
+            {refreshToken}
+          </pre>
+        </>
+      )}
 
       <h3>Header</h3>
       <pre>{JSON.stringify(header, null, 2)}</pre>
