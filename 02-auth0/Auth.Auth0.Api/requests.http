@@ -1,0 +1,44 @@
+# Peticiones de prueba de Auth.Auth0.Api
+# Ábrelo en VS Code (extensión REST Client) o en Visual Studio / Rider.
+@api = http://localhost:5080
+
+### Salud de la API (anónimo) -> 200
+GET {{api}}/api/health
+
+### CORS: preflight desde el frontend permitido -> 204 con Access-Control-Allow-Origin
+OPTIONS {{api}}/api/health
+Origin: http://localhost:5173
+Access-Control-Request-Method: GET
+Access-Control-Request-Headers: authorization
+
+# ---------------------------------------------------------------
+# Para obtener un access token de Auth0:
+#   a) Inicia sesión en auth0-web (http://localhost:5173), panel "Access token", botón Copiar.
+#   b) O en el dashboard de Auth0: Applications > APIs > Demo Auth API > Test.
+# Pega el token en la variable de abajo.
+# ---------------------------------------------------------------
+@token = PEGA_AQUI_EL_ACCESS_TOKEN
+@tokenSinRol = PEGA_AQUI_EL_ACCESS_TOKEN_DE_UN_USUARIO_SIN_ROL
+
+### Público (anónimo) -> 200
+GET {{api}}/api/public
+
+### ERROR INTENCIONAL: privado SIN token -> 401
+GET {{api}}/api/private
+
+### Privado con token -> 200 (incluye sub y permissions)
+GET {{api}}/api/private
+Authorization: Bearer {{token}}
+
+### Con permiso read:messages (usuario CON el rol) -> 200
+GET {{api}}/api/private-scoped
+Authorization: Bearer {{token}}
+
+### ERROR INTENCIONAL: usuario SIN el rol -> 403 (autenticado, pero sin permiso)
+GET {{api}}/api/private-scoped
+Authorization: Bearer {{tokenSinRol}}
+
+### ERROR INTENCIONAL: token de la Parte A en esta API -> 401
+# Firma HS256 con otra llave, otro iss y otra aud: Auth0 no lo emitió.
+GET {{api}}/api/private
+Authorization: Bearer PEGA_AQUI_UN_TOKEN_DE_LA_PARTE_A

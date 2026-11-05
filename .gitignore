@@ -1,0 +1,34 @@
+# ---------------------------------------------------------------
+# .gitignore del monorepo demo-auth
+# Regla de oro: NINGÚN secreto entra al repositorio.
+# ---------------------------------------------------------------
+
+# .NET
+bin/
+obj/
+.vs/
+*.user
+
+# Base de datos SQLite local (se crea al iniciar la API)
+*.db
+*.db-shm
+*.db-wal
+
+# Node / Vite
+node_modules/
+dist/
+*.local
+
+# Variables de entorno: solo se versiona el .env.example
+.env
+.env.*
+!.env.example
+
+# El repositorio raíz ignora los lockfiles; aquí sí los versionamos
+# para que todos instalen exactamente las mismas versiones en clase.
+!package-lock.json
+
+# Editores / SO
+.idea/
+.DS_Store
+Thumbs.db
